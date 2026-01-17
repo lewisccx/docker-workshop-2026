@@ -1,6 +1,7 @@
 import pandas as pd
 from sqlalchemy import create_engine
 from tqdm.notebook import tqdm
+import click
 
 dtype = {
     "VendorID": "Int64",
@@ -25,40 +26,49 @@ parse_dates = [
     "tpep_pickup_datetime",
     "tpep_dropoff_datetime"
 ]
+@click.command()
+@click.option('--user', default='root', help='PostgreSQL user')
+@click.option('--password', default='root', help='PostgreSQL password')
+@click.option('--host', default='localhost', help='PostgreSQL host')
+@click.option('--port', default=5432, type=int, help='PostgreSQL port')
+@click.option('--db', default='ny_taxi', help='PostgreSQL database name')
+@click.option('--year', default=2021, type=int, help='Year of the data')
+@click.option('--month', default=1, type=int, help='Month of the data')
+@click.option('--table', default='yellow_taxi_data', help='Target table name')
+def ingest_data(user, password, host, port, db, year, month, table):
 
-def run():
-    year = 2021
-    month = 1
-    prefix = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow/'
-    url = f'{prefix}/yellow_tripdata_{year}-{month:02d}.csv.gz'
-    pg_user = 'root'
-    pg_pass = 'root'
-    pg_host = 'localhost'
-    pg_db = 'ny_taxi'
-    pg_port = '5432'
-    chunk_size = 100000
-    target_table = 'yellow_taxi_data'
+    # prefix = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow/'
+    # url = f'{prefix}/yellow_tripdata_{year}-{month:02d}.csv.gz'
+    # prefix = 'https://d37ci6vzurychx.cloudfront.net/trip-data/'
+    # url = f'{prefix}green_tripdata_{year}-{month:02d}.parquet'
 
-    engine = create_engine(f'postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}')
-
+    url = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/misc/taxi_zone_lookup.csv'
+    engine = create_engine(f'postgresql://{user}:{password}@{host}:{port}/{db}')
+    # df = pd.read_parquet(url)
+    # df.to_sql(
+    #     table,  # Name of the table in PostgreSQL
+    #     con=engine,  # The SQLAlchemy engine
+    #     if_exists='replace',  # 'fail', 'replace', or 'append' if table exists
+    #     index=False  # Don't write the DataFrame index as a column
+    # )
     df_iter = pd.read_csv(
         url,
-        dtype=dtype,
-        parse_dates=parse_dates,
+        # dtype=dtype,
+        # parse_dates=parse_dates,
         iterator=True,
-        chunksize=chunk_size,
+        chunksize=100000,
     )
+
 
     first = True
     for df_chunk in tqdm(df_iter):
         if first:
-            df_chunk.head(n=0).to_sql(name=target_table, con=engine, if_exists='replace')
+            df_chunk.head(n=0).to_sql(name=table, con=engine, if_exists='replace')
             first = False
             print("Table created")
-        df_chunk.to_sql(name=target_table, con=engine, if_exists='append')
+        df_chunk.to_sql(name=table, con=engine, if_exists='append')
         print("Inserted:", len(df_chunk))
 
-
 if __name__ == '__main__':
-    run()
+    ingest_data()
 
